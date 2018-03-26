@@ -8,9 +8,12 @@ class Scanner:
   def __init__(self, input):
     self.tokens = []
     self.current_token_number = 0
-    for token in self.tokenize(input):
-        self.tokens.append(token)
-    # for token in self.tokens:
+    try:
+	    for token in self.tokenize(input):
+	        self.tokens.append(token)
+    except:
+        print "Error"
+	    # for token in self.tokens:
     #     print token.value + " " + token.type
         
  
@@ -32,7 +35,8 @@ class Scanner:
         ('ocp', r'\{'),
         ('ccb', r'\}'),
         ('comma', r'\,'),
-        ('exclamation_mark', r'\!')
+        ('exclamation_mark', r'\!'),
+        ('question_mark', r'\?')
     ]
     tok_regex = '|'.join('(?P<%s>%s)' % pair for pair in token_specification)
 
@@ -64,6 +68,5 @@ class Scanner:
     if self.current_token_number-1 < len(self.tokens):
       return self.tokens[self.current_token_number-1]
     else:
-      print "Dupa"
       raise RuntimeError('Error: No more tokens')
 

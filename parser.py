@@ -34,15 +34,16 @@ class Parser:
     return
 
   ##### Parser body #####
-
+  # start parsaing
   def start(self):
-    if self.token.type == 'var':
-      self.token = self.next_token()
-      self.resultVariable()
+    if self.token.type == 'var': # check if statement starts with keyword
+      self.token = self.next_token() # get next token
+      self.resultVariable() 
     else:
       self.errorMsg('Error: no \'var\' keyword at the beginning')
       return
 
+  # check what is after 'var' and if everything is correct then proceed (correct: 'var test...', not correct: 'var 12test...')
   def resultVariable(self):
     if self.token.type == 'variablename':
       self.token = self.next_token()
@@ -51,6 +52,7 @@ class Parser:
       self.errorMsg('Result variable name incorrect')
       return
 
+  # check if there is equality sign in the statement (correct: 'var test = from c in...', not correct: 'var test from c in...')
   def equals(self):
     if self.token.type == 'assign':
       # self.token = self.next_token()
@@ -89,15 +91,17 @@ class Parser:
         if tokenItem.type == 'EOF':
           break
 
-        self.insertIntoCorrectArray(tokenizerFlag, tokenItem)
+        self.insertIntoCorrectArray(tokenizerFlag, tokenItem) # insert token (tokenItem) into proper array (indicated by tokenizerFlag)
 
       except: 
         break
-    self.printDividedCode()
+    # self.printDividedCode()
     self.validateRangeSection()
 
-
+  # validates whole range section: 'from c in svcContext.ContactSet'
   def validateRangeSection(self):
+    if len(self.queryrange) == 0:
+      return
     self.range_variable = self.queryrange[1] # skip "from" keyword - it was verified in divideIntoSections
     
     if re.compile(r'^[0-9].*$').match(self.range_variable.value): # check if range variable starts with number
@@ -110,9 +114,7 @@ class Parser:
 
     sequence = ""
     for x in range(3, len(self.queryrange)): # rest of range section - concatenate
-      sequence += self.queryrange[x].value
-    
-    print sequence
+      sequence += self.queryrange[x].value   
 
     if re.compile(r'.*;.*').match(sequence): # rest cannot contain semicolon
       self.errorMsg('Semicolon not allowed here')
@@ -127,24 +129,46 @@ class Parser:
 
     self.validateConditionalSection()
 
-
+  # validates whole conditional section: 'where c.CreditLimit.Equals(null) orderby c.CreditLimit descending'
   def validateConditionalSection(self):
     if len(self.conditionals) == 0: # no conditionals
-      pass
-    if self.conditionals[1].type == 'exclamation_mark':
-      self.validateConditionalExpression(2)
-    self.validateSelectionSection()
+      self.validateSelectionSection()
 
+    if len(self.conditionals) == 1: # no conditionals
+      self.errorMsg('Error - expression statement incorrect - possible')
+      return
+    
+    try:
+      if self.conditionals[1].type == 'exclamation_mark':
+        self.validateConditionalExpression(2)
+      # if self.conditionals[1].type == 'variablename' or self.conditionals[1].type == 'dot':
+      else:
+        self.validateConditionalExpression(1)
+    except:
+      self.errorMsg('Error - unsupported character detected in expression statement')
+      return
+
+    try:
+      self.validateEndSection()
+      self.validateSelectionSection()
+    except:
+      self.errorMsg('Error - unsupported character detected in selection statement')
+      return
+
+  # validates whole select section: 'select new {limit = c.Credit, Limit first = c.FirstName, last = c.LastName}'
   def validateSelectionSection(self):
+    if len(self.selection) == 0:
+      self.errorMsg('Error - No select statement')
+      return
+    
     if self.selection[1].value == 'new':
       self.validateSelectBody(2)
-    elif self.selection[1].value != self.range_variable.value:
-      print self.range_variable
-      self.errorMsg('Error - variable name not matching range variable after \'where\'')
+    elif self.selection[1].value != self.range_variable.value or len(self.selection) > 2:
+      self.errorMsg('Error - after select you should use \'new\' keyword')
+    elif self.selection[1].value != self.range_variable.value: 
+      self.errorMsg('Error - variable name not matching range variable after \'select\'')
 
-  def validateEndSection(self):
-    pass
-
+  # Validates conditional expression in two phases: first are validated expression statements and second - sorting ones
   def validateConditionalExpression(self, number):
     expressionCode = ''
     sortingCode = ''
@@ -156,11 +180,10 @@ class Parser:
         expressionCode += (self.conditionals[item].value) + ' '
       else:
         sortingCode += (self.conditionals[item].value) + ' '
-    print expressionCode + ';'
     if expressionCode:
       reg = re.compile(r'^' + self.range_variable.value + ' \. [a-zA-Z]+ \. Equals \( [a-zA-Z]+ \) $').match(expressionCode)
       if not reg:
-        self.errorMsg('Error - expression statements incorrect')
+        self.errorMsg('Error - conditional expression statements incorrect')
         return
     else:
       self.errorMsg('Error - no condition')
@@ -172,15 +195,17 @@ class Parser:
         self.errorMsg('Error - sorting statements incorrect')
         return
 
-
+  # validates selection body (if exists). we start checking 'selection' array from 'number' index (skipping 'number' of starting tokens)
   def validateSelectBody(self, number):
+
     select_body = ""
     
+    # Construct select body into string, which can be easily chceked via regular expression 
     for item in range(number, len(self.selection)):
       select_body += self.selection[item].value      
     
     
-    # if not (select_body.startswith('{') and select_body.endswith('}')):
+    # Chcek if selection body starts and ends with '{' and '}'
     if select_body.startswith('{'):
       if select_body.endswith('}'):
         pass
@@ -191,20 +216,18 @@ class Parser:
       self.errorMsg("No opening bracket in select body")
       return
 
+    # Now remove brackets '{' and '}'
     select_body = select_body.replace(select_body[0],"",1)
     select_body = select_body.replace(select_body[len(select_body) - 1],"",1)
 
+    # So if there is comma at the end it is redundand - error
     if select_body.endswith(','):
       self.errorMsg("Error - Redundant comma at the end of select body")
       return
 
-    previous = ""
-    var_type = ""
-    var_type = self.selection[number + 1].type
 
-    subfield = ""
-    lines = []
-    line = ""
+    lines = [] # stores parts of selection body splitted by comma without comma, for instance: ['limit=c.CreditLimit', 'first=c.FirstName', 'last=c.LastName'] for the follownig input: select new { limit = c . CreditLimit , first = c . FirstName , last = c . LastName }
+    line = "" # temporary variable helpful in building 'lines'
 
     for item in range(number + 1, len(self.selection) - 1):
       if self.selection[item].value != ",":
@@ -213,14 +236,14 @@ class Parser:
         lines.append(line)
         line = ""
 
-    regex = '^[a-zA-Z]+=%s+\.[a-zA-Z]+$' % self.range_variable.value
-    regex_against_comma = '^[a-zA-Z]+=' + self.range_variable.value + '+\.[a-zA-Z]+='
+    regex = '^[a-zA-Z]+=%s+\.[a-zA-Z]+$' % self.range_variable.value # regex for checking coretness (without comma) of one line in selection body (for inmstance: 'limit = c.CreditLimit')
+    regex_against_comma = '^[a-zA-Z]+=' + self.range_variable.value + '+\.[a-zA-Z]+='  # regex for checking if comma was not typed (when no comma, then we have the following: 'limit = c.CreditLimit first = c.FirstName,')
 
     for item in lines:
-      if not (re.compile(regex).match(item)):
-        self.errorMsg("Error: Incorrect syntax in selct body ->" + item)
+      if not (re.compile(regex).match(item)): # first above regex validation
+        self.errorMsg("Error: Incorrect syntax in select body --> " + item)
         return
-      if re.compile(regex_against_comma).match(item):
+      if re.compile(regex_against_comma).match(item):# second above regex validation
         self.errorMsg('Error - no comma between lines')
     # print self.range_variable.value
       # if previous == "" and self.selection[item].type == 'variablename':
@@ -228,10 +251,16 @@ class Parser:
       # else:
       #   self.errorMsg('Error - select body starts with: ' + self.selection[item].value)
 
-
+  def validateEndSection(self): # validates semicolon
+    if len(self.end) == 0:      
+      self.errorMsg("Error - no semicolon at the end of statement or unsupported character")
+      return
+    print "" # everything is fine
+    print "LINQ statement is ok"
+      
 
   def insertIntoCorrectArray(self, tokenizerFlag, tokenItem):
-    # print tokenizerFlag + " ===:  " + tokenItem.value 
+    # Divide tokens from lexer into arrays where each array conforms to its valid section: i.e condition statement into conditions, selection into selections etc 
     if tokenizerFlag == 'range':
       self.queryrange.append(tokenItem)
     elif tokenizerFlag == 'conditionals':
@@ -242,6 +271,7 @@ class Parser:
       self.end.append(tokenItem)
 
   def printDividedCode(self):
+    # Prints tokens in arrays created on the base of sections(range, expression, conditional and selection) recognizing
     print ""
     print "Range: "
     string = ""
