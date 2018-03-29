@@ -10,11 +10,12 @@ class Scanner:
     self.current_token_number = 0
     try:
 	    for token in self.tokenize(input):
-	        self.tokens.append(token)
+	        self.tokens.append(token)        
     except:
         print "Error"
-	    # for token in self.tokens:
+    # for token in self.tokens:
     #     print token.value + " " + token.type
+	    
         
  
   def tokenize(self, input_string):

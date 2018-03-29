@@ -39,6 +39,7 @@ class Parser:
     if self.token.type == 'var': # check if statement starts with keyword
       self.token = self.next_token() # get next token
       self.resultVariable() 
+      self.validateEndSection()
     else:
       self.errorMsg('Error: no \'var\' keyword at the beginning')
       return
@@ -95,7 +96,7 @@ class Parser:
 
       except: 
         break
-    # self.printDividedCode()
+    self.printDividedCode()
     self.validateRangeSection()
 
   # validates whole range section: 'from c in svcContext.ContactSet'
@@ -131,8 +132,10 @@ class Parser:
 
   # validates whole conditional section: 'where c.CreditLimit.Equals(null) orderby c.CreditLimit descending'
   def validateConditionalSection(self):
+    print "sdfsdfgdfsgsdfg "+ str(len(self.conditionals))
     if len(self.conditionals) == 0: # no conditionals
       self.validateSelectionSection()
+      return
 
     if len(self.conditionals) == 1: # no conditionals
       self.errorMsg('Error - expression statement incorrect - possible')
@@ -148,9 +151,9 @@ class Parser:
       self.errorMsg('Error - unsupported character detected in expression statement')
       return
 
-    try:
-      self.validateEndSection()
+    try:      
       self.validateSelectionSection()
+      # self.validateEndSection()
     except:
       self.errorMsg('Error - unsupported character detected in selection statement')
       return
@@ -255,8 +258,7 @@ class Parser:
     if len(self.end) == 0:      
       self.errorMsg("Error - no semicolon at the end of statement or unsupported character")
       return
-    print "" # everything is fine
-    print "LINQ statement is ok"
+
       
 
   def insertIntoCorrectArray(self, tokenizerFlag, tokenItem):
